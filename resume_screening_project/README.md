@@ -5,9 +5,7 @@
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Streamlit](https://img.shields.io/badge/streamlit-1.28+-red.svg)](https://streamlit.io/)
 [![Status](https://img.shields.io/badge/status-production-green.svg)](https://github.com)
-[![Dataset](https://img.shields.io/badge/resumes-2,484-blue.svg)](data/resumes/)
-
-## 📋 Overview
+[![Live App](https://img.shields.io/badge/Live-Streamlit%20Cloud-red.svg)](https://nlp-resume-screening.streamlit.app)
 
 Production-ready resume screening system using state-of-the-art NLP with **professional Streamlit UI**, supporting **4 advanced ranking models** (TF-IDF, BERT, Hybrid, Deep Ensemble), and deployed with **Docker**. Features 2,484 integrated resumes across 24 job categories.
 
@@ -23,7 +21,15 @@ Production-ready resume screening system using state-of-the-art NLP with **profe
 
 ---
 
-## 🚀 Quick Start (3 Steps)
+## ⚡ **Try Live App Now!**
+
+### 🎯 **[➤ Open Live App - https://nlp-resume-screening.streamlit.app](https://nlp-resume-screening.streamlit.app)**
+
+No installation needed! The app is deployed and ready to use immediately.
+
+---
+
+## 🚀 Quick Start (Local Setup)
 
 ### 1. **Clone & Setup**
 ```bash
@@ -472,11 +478,19 @@ docker run -p 8501:8501 \
 
 ## ☁️ Cloud Deployment
 
-### **Streamlit Cloud** (Easiest)
-1. Push to GitHub
-2. Go to https://streamlit.io/cloud
-3. Click "New app" → Select repo & file
-4. Done! App deploys automatically
+### **Streamlit Cloud** (Easiest - Live Now!) ✅
+**App is LIVE and DEPLOYED!**
+- 🚀 **Live Application**: https://nlp-resume-screening.streamlit.app
+- 📚 **GitHub Repository**: https://github.com/gaurav2302221-cell/NLP-G1
+- 🌿 **Default Branch**: main
+
+**Access Links:**
+| Resource | URL |
+|----------|-----|
+| **Live Streamlit App** | https://nlp-resume-screening.streamlit.app |
+| **GitHub Repo** | https://github.com/gaurav2302221-cell/NLP-G1 |
+| **File to Deploy** | src/app_pro.py |
+| **Branch** | main |
 
 ### **Heroku**
 ```bash
@@ -508,6 +522,32 @@ gcloud run deploy resume-screening \
 ```
 
 See **[DEPLOYMENT.md](DEPLOYMENT.md)** for detailed cloud deployment guides.
+
+---
+
+## 🎛️ Streamlit Cloud Configuration
+
+The app is fully configured for Streamlit Cloud deployment:
+
+**Configuration Files:**
+- `.streamlit/config.toml` - Theme (#667eea), server settings, security
+- `requirements.txt` - All dependencies pre-installed
+- `src/app_pro.py` - Main app entry point
+- `.gitignore` - Sensitive files excluded
+
+**Current Deployment:**
+- ✅ **Live App**: https://nlp-resume-screening.streamlit.app
+- ✅ **Repository Branch**: main (updated from master)
+- ✅ **Status**: Deployed and live
+- ✅ **Update Frequency**: Auto-deploys on git push to main
+
+**Quick Links:**
+| Link | URL |
+|------|-----|
+| 🚀 Live App | https://nlp-resume-screening.streamlit.app |
+| 📚 GitHub Repo | https://github.com/gaurav2302221-cell/NLP-G1 |
+| 🔧 Source Code | src/app_pro.py |
+| 📋 Issues & Support | https://github.com/gaurav2302221-cell/NLP-G1/issues |
 
 ---
 
@@ -708,11 +748,26 @@ This system assists in resume screening and should be used in conjunction with h
 
 ---
 
-## 📞 Support
+## 📞 Support & Links
 
-- **Issues**: [GitHub Issues](https://github.com/gaurav2302221-cell/NLP-G1/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/gaurav2302221-cell/NLP-G1/discussions)
+**🚀 Live Application:**
+- https://nlp-resume-screening.streamlit.app
+
+**📚 Source Code & Repository:**
+- GitHub: https://github.com/gaurav2302221-cell/NLP-G1
+- Main Branch: All files and updates
+- Clone: `git clone https://github.com/gaurav2302221-cell/NLP-G1.git`
+
+**💬 Get Help:**
+- **Issues**: [Report bugs or request features](https://github.com/gaurav2302221-cell/NLP-G1/issues)
+- **Discussions**: [Ask questions & share ideas](https://github.com/gaurav2302221-cell/NLP-G1/discussions)
 - **Email**: team@resumescreening.com
+
+**📖 Documentation:**
+- [README.md](README.md) - This file
+- [DEPLOYMENT.md](DEPLOYMENT.md)- Cloud deployment guides
+- [START_HERE.md](START_HERE.md) - Quick start
+- [QUICK_START.md](QUICK_START.md) - Code examples
 
 ---
 
