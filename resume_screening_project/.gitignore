@@ -1,0 +1,87 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.sublime-project
+.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+.windows
+.thumbs
+
+# Streamlit
+.streamlit/
+streamlit_cache/
+.cache/
+
+# Data and models
+*.pkl
+*.pickle
+*.h5
+*.joblib
+*.pth
+cache/
+models/
+
+# Test and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.cover
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*~
+.~*
+
+# Data files (optional)
+# data/resumes_backup/
+# results/
+
+# Secrets
+.env.local
+secrets.yaml
+config.secret.yaml
+
+# IDE specific
+.vscode/launch.json
+.vscode/settings.json

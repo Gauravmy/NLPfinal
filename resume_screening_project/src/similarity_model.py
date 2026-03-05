@@ -230,3 +230,184 @@ def normalize_similarity(score: float) -> float:
         float: Normalized score (0-100)
     """
     return round(score * 100, 2)
+
+
+# ============================================================================
+# Bulk Similarity Calculation Methods
+# ============================================================================
+
+def tfidf_similarity_bulk(resume_texts: list, job_text: str) -> np.ndarray:
+    """
+    Calculate TF-IDF similarity scores for multiple resumes against a job description.
+    
+    Args:
+        resume_texts (list): List of resume texts
+        job_text (str): Job description text
+        
+    Returns:
+        np.ndarray: Array of similarity scores (0-1)
+    """
+    try:
+        if not resume_texts or not job_text:
+            logger.warning("Empty texts provided to TF-IDF bulk similarity")
+            return np.zeros(len(resume_texts) if resume_texts else 0)
+        
+        # Create TF-IDF vectorizer
+        vectorizer = TfidfVectorizer(max_features=5000, stop_words='english')
+        
+        # Combine all texts for fitting
+        all_texts = resume_texts + [job_text]
+        tfidf_matrix = vectorizer.fit_transform(all_texts)
+        
+        # Job description is the last vector
+        job_vector = tfidf_matrix[-1]
+        resume_vectors = tfidf_matrix[:-1]
+        
+        # Calculate cosine similarity
+        similarities = cosine_similarity(job_vector, resume_vectors)[0]
+        
+        logger.info(f"Computed TF-IDF similarities for {len(resume_texts)} resumes")
+        return similarities
+        
+    except Exception as e:
+        logger.error(f"Error in TF-IDF bulk similarity: {e}")
+        return np.zeros(len(resume_texts) if resume_texts else 0)
+
+
+def bert_similarity_bulk(resume_texts: list, job_text: str, 
+                        show_progress: bool = True) -> np.ndarray:
+    """
+    Calculate BERT similarity scores for multiple resumes against a job description.
+    
+    Args:
+        resume_texts (list): List of resume texts
+        job_text (str): Job description text
+        show_progress (bool): Whether to show progress bar
+        
+    Returns:
+        np.ndarray: Array of similarity scores (0-1)
+    """
+    try:
+        if not resume_texts or not job_text:
+            logger.warning("Empty texts provided to BERT bulk similarity")
+            return np.zeros(len(resume_texts) if resume_texts else 0)
+        
+        # Initialize BERT model
+        initialize_bert_model()
+        
+        # Limit text length for speed
+        resume_texts_limited = [text[:2000] for text in resume_texts]
+        job_text_limited = job_text[:2000]
+        
+        # Encode all texts
+        logger.info("Encoding resume texts with BERT...")
+        resume_embeddings = BERT_MODEL.encode(
+            resume_texts_limited,
+            show_progress_bar=show_progress,
+            convert_to_numpy=True
+        )
+        
+        logger.info("Encoding job description with BERT...")
+        job_embedding = BERT_MODEL.encode(job_text_limited, convert_to_numpy=True)
+        
+        # Calculate cosine similarity
+        similarities = cosine_similarity([job_embedding], resume_embeddings)[0]
+        
+        logger.info(f"Computed BERT similarities for {len(resume_texts)} resumes")
+        return similarities
+        
+    except Exception as e:
+        logger.error(f"Error in BERT bulk similarity: {e}")
+        return np.zeros(len(resume_texts) if resume_texts else 0)
+
+
+def ensemble_similarity(resume_text: str, job_text: str, 
+                       weights: dict = None) -> Tuple[float, dict]:
+    """
+    Compute similarity using weighted ensemble of multiple approaches.
+    
+    Args:
+        resume_text (str): Resume text
+        job_text (str): Job description text
+        weights (dict): Dictionary with weights for each method
+                       Default: {'tfidf': 0.4, 'bert': 0.6}
+        
+    Returns:
+        Tuple[float, dict]: Weighted ensemble score and component scores
+    """
+    try:
+        if not weights:
+            weights = {'tfidf': 0.4, 'bert': 0.6}
+        
+        # Normalize weights
+        total_weight = sum(weights.values())
+        weights = {k: v/total_weight for k, v in weights.items()}
+        
+        # Calculate component scores
+        tfidf_score = tfidf_similarity(resume_text, job_text)
+        bert_score = bert_similarity(resume_text, job_text)
+        
+        # Compute weighted score
+        ensemble_score = (
+            weights.get('tfidf', 0) * tfidf_score +
+            weights.get('bert', 0) * bert_score
+        )
+        
+        breakdown = {
+            'tfidf': round(tfidf_score, 4),
+            'bert': round(bert_score, 4),
+            'ensemble': round(ensemble_score, 4)
+        }
+        
+        return ensemble_score, breakdown
+        
+    except Exception as e:
+        logger.error(f"Error in ensemble similarity: {e}")
+        return 0.0, {'tfidf': 0.0, 'bert': 0.0, 'ensemble': 0.0}
+
+
+def deep_ensemble_similarity_bulk(resume_texts: list, job_text: str,
+                                  tfidf_weight: float = 0.5,
+                                  bert_weight: float = 0.5) -> np.ndarray:
+    """
+    Calculate deep ensemble similarity scores for multiple resumes.
+    Combines TF-IDF and BERT with specified weights.
+    
+    Args:
+        resume_texts (list): List of resume texts
+        job_text (str): Job description text
+        tfidf_weight (float): Weight for TF-IDF component (default: 0.5)
+        bert_weight (float): Weight for BERT component (default: 0.5)
+        
+    Returns:
+        np.ndarray: Array of ensemble similarity scores (0-1)
+    """
+    try:
+        if not resume_texts or not job_text:
+            logger.warning("Empty texts provided to deep ensemble")
+            return np.zeros(len(resume_texts) if resume_texts else 0)
+        
+        # Normalize weights
+        total = tfidf_weight + bert_weight
+        tfidf_weight = tfidf_weight / total
+        bert_weight = bert_weight / total
+        
+        # Calculate individual similarities
+        logger.info("Computing TF-IDF similarities...")
+        tfidf_scores = tfidf_similarity_bulk(resume_texts, job_text)
+        
+        logger.info("Computing BERT similarities...")
+        bert_scores = bert_similarity_bulk(resume_texts, job_text, show_progress=False)
+        
+        # Compute weighted ensemble
+        ensemble_scores = (
+            tfidf_weight * tfidf_scores +
+            bert_weight * bert_scores
+        )
+        
+        logger.info(f"Computed deep ensemble scores for {len(resume_texts)} resumes")
+        return ensemble_scores
+        
+    except Exception as e:
+        logger.error(f"Error in deep ensemble similarity: {e}")
+        return np.zeros(len(resume_texts) if resume_texts else 0)

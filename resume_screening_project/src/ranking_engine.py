@@ -194,3 +194,154 @@ def export_rankings_to_dict(ranked_candidates: List[Dict]) -> List[Dict]:
         })
     
     return export_data
+
+
+# ============================================================================
+# Ensemble-based Ranking Functions for DataFrame Operations
+# ============================================================================
+
+def rank_by_bert_similarity(candidate_resumes: Dict[str, Tuple[str, set]],
+                           job_description: str,
+                           job_skills: set) -> List[Dict]:
+    """
+    Rank candidates using BERT similarity score.
+    
+    Args:
+        candidate_resumes (Dict): Dictionary with candidate names and resume data
+        job_description (str): Job description text
+        job_skills (set): Set of required skills
+        
+    Returns:
+        List[Dict]: Ranked candidates with BERT scores
+    """
+    try:
+        from src.similarity_model import bert_similarity
+        
+        if not candidate_resumes:
+            logger.warning("No candidate resumes provided")
+            return []
+        
+        candidate_scores = []
+        
+        for candidate_name, (resume_text, resume_skills) in candidate_resumes.items():
+            try:
+                # Calculate BERT similarity
+                bert_score = bert_similarity(resume_text, job_description)
+                
+                candidate_scores.append({
+                    'candidate_name': candidate_name,
+                    'bert_score': round(bert_score * 100, 2),
+                    'extracted_skills': resume_skills,
+                    'matching_skills': job_skills & resume_skills
+                })
+                
+                logger.debug(f"BERT scored candidate: {candidate_name} - {bert_score:.4f}")
+                
+            except Exception as e:
+                logger.warning(f"Error scoring candidate {candidate_name} with BERT: {e}")
+                continue
+        
+        # Sort by BERT score
+        ranked_candidates = sorted(candidate_scores,
+                                  key=lambda x: x['bert_score'],
+                                  reverse=True)
+        
+        for idx, candidate in enumerate(ranked_candidates, 1):
+            candidate['rank'] = idx
+        
+        logger.info(f"BERT ranking complete. Top {len(ranked_candidates)} candidates scored")
+        return ranked_candidates
+        
+    except Exception as e:
+        logger.error(f"Error during BERT ranking: {e}")
+        return []
+
+
+def rank_by_ensemble(candidate_resumes: Dict[str, Tuple[str, set]],
+                    job_description: str,
+                    job_skills: set,
+                    tfidf_weight: float = 0.5,
+                    bert_weight: float = 0.3,
+                    skill_weight: float = 0.2) -> List[Dict]:
+    """
+    Rank candidates using deep ensemble approach combining TF-IDF, BERT, and skills.
+    
+    Args:
+        candidate_resumes (Dict): Dictionary with candidate names and resume data
+        job_description (str): Job description text
+        job_skills (set): Set of required skills
+        tfidf_weight (float): Weight for TF-IDF (default: 0.5)
+        bert_weight (float): Weight for BERT (default: 0.3)
+        skill_weight (float): Weight for skill matching (default: 0.2)
+        
+    Returns:
+        List[Dict]: Ranked candidates with ensemble scores
+    """
+    try:
+        from src.similarity_model import tfidf_similarity, bert_similarity
+        
+        if not candidate_resumes:
+            logger.warning("No candidate resumes provided")
+            return []
+        
+        # Normalize weights
+        total = tfidf_weight + bert_weight + skill_weight
+        tfidf_weight = tfidf_weight / total
+        bert_weight = bert_weight / total
+        skill_weight = skill_weight / total
+        
+        logger.info(f"Ensemble weights - TF-IDF: {tfidf_weight:.2f}, "
+                   f"BERT: {bert_weight:.2f}, Skills: {skill_weight:.2f}")
+        
+        candidate_scores = []
+        
+        for candidate_name, (resume_text, resume_skills) in candidate_resumes.items():
+            try:
+                # Calculate all components
+                tfidf_score = tfidf_similarity(resume_text, job_description)
+                bert_score = bert_similarity(resume_text, job_description)
+                
+                skill_match_pct = calculate_skill_match_percentage(job_skills, resume_skills)
+                skill_match_norm = skill_match_pct / 100.0
+                
+                # Compute ensemble score
+                ensemble_score = (
+                    tfidf_weight * tfidf_score +
+                    bert_weight * bert_score +
+                    skill_weight * skill_match_norm
+                )
+                
+                candidate_scores.append({
+                    'candidate_name': candidate_name,
+                    'tfidf_score': round(tfidf_score * 100, 2),
+                    'bert_score': round(bert_score * 100, 2),
+                    'skill_match_percentage': skill_match_pct,
+                    'ensemble_score': round(ensemble_score * 100, 2),
+                    'extracted_skills': resume_skills,
+                    'matching_skills': job_skills & resume_skills,
+                    'missing_skills': job_skills - resume_skills
+                })
+                
+                logger.debug(f"Ensemble scored {candidate_name}: "
+                           f"TF-IDF={tfidf_score:.4f}, BERT={bert_score:.4f}, "
+                           f"Ensemble={ensemble_score:.4f}")
+                
+            except Exception as e:
+                logger.warning(f"Error scoring candidate {candidate_name}: {e}")
+                continue
+        
+        # Sort by ensemble score
+        ranked_candidates = sorted(candidate_scores,
+                                  key=lambda x: x['ensemble_score'],
+                                  reverse=True)
+        
+        for idx, candidate in enumerate(ranked_candidates, 1):
+            candidate['rank'] = idx
+        
+        logger.info(f"Ensemble ranking complete. Top candidate: "
+                   f"{ranked_candidates[0]['candidate_name'] if ranked_candidates else 'None'}")
+        return ranked_candidates
+        
+    except Exception as e:
+        logger.error(f"Error during ensemble ranking: {e}")
+        raise
