@@ -1,11 +1,11 @@
 """
-Resume Screening System - Streamlit Web Application
+Resume Screening System - Production-Ready Streamlit Application
 
-Interactive dashboard for automated resume screening and candidate ranking
-based on job description matching using advanced NLP techniques.
+Advanced resume screening and candidate ranking powered by NLP.
+Features 4 ranking models, skill extraction, evaluation metrics, and more.
 
 Author: AI/ML Engineering Team
-Version: 1.0.0
+Version: 3.0.0 (Production - Streamlit Cloud)
 """
 
 import streamlit as st
@@ -18,125 +18,215 @@ import logging
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
+import warnings
+
+warnings.filterwarnings('ignore')
 
 # Add src directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Import custom modules
-from src.resume_parser import parse_resume, get_resume_filename
+# Fast imports first
 from src.text_preprocessing import preprocess_text
-from src.skill_extractor import extract_skills, get_skill_summary
-from src.job_parser import process_job_description
-from src.similarity_model import compute_similarity, initialize_bert_model
-from src.ranking_engine import (
-    rank_candidates, 
-    get_top_candidates, 
-    get_candidate_summary,
-    filter_candidates_by_threshold,
-    export_rankings_to_dict
-)
-from src.evaluation import evaluate_model
+from src.skill_extractor import extract_skills, extract_job_skills
+
+# Lazy import for heavy modules
+def get_heavy_imports():
+    """Lazy load heavy modules only when needed"""
+    try:
+        from src.ranking_engine import rank_candidates, get_top_candidates
+        from src.model_comparison import (
+            rank_by_tfidf, rank_by_bert, rank_by_hybrid, rank_by_deep_ensemble
+        )
+        from src.similarity_model import initialize_bert_model
+        return {
+            'rank_candidates': rank_candidates,
+            'get_top_candidates': get_top_candidates,
+            'rank_by_tfidf': rank_by_tfidf,
+            'rank_by_bert': rank_by_bert,
+            'rank_by_hybrid': rank_by_hybrid,
+            'rank_by_deep_ensemble': rank_by_deep_ensemble,
+            'initialize_bert_model': initialize_bert_model
+        }
+    except Exception as e:
+        return None
 
 # Configure logging
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
-# Page configuration
+# ============================================================================
+# PAGE CONFIGURATION WITH ACCESSIBILITY
+# ============================================================================
+
 st.set_page_config(
-    page_title="Resume Screening System",
-    page_icon="document",
+    page_title="Resume Screening Pro",
+    page_icon="📄",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://github.com',
+        'Report a bug': 'https://github.com',
+        'About': "Resume Screening Pro v3.0 - Streamlit Cloud Ready"
+    }
 )
 
-# Custom styling - No emojis in CSS
+# ============================================================================
+# MODERN, ACCESSIBLE CUSTOM STYLING
+# ============================================================================
+
 st.markdown("""
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-        }
-        
         .main {
             padding: 2rem;
-            background-color: #f8f9fa;
+            max-width: 1400px;
+            margin: 0 auto;
+            background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
         }
         
-        .header-container {
-            background: linear-gradient(135deg, #1f77b4 0%, #2b5db8 100%);
-            color: white;
-            padding: 2rem;
-            border-radius: 10px;
-            margin-bottom: 2rem;
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        
-        .header-container h1 {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-            font-weight: bold;
-        }
-        
-        .header-container p {
-            font-size: 1.1rem;
-            opacity: 0.95;
-        }
-        
-        .input-section {
-            background-color: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            border: 1px solid #e0e0e0;
-        }
-        
-        .section-title {
+        h1 {
             color: #1f77b4;
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        
+        h2 {
+            color: #1f77b4;
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+        
+        h3 {
+            color: #333;
+            margin-top: 1rem;
+            margin-bottom: 0.75rem;
             font-size: 1.3rem;
-            font-weight: bold;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid #1f77b4;
+            font-weight: 600;
         }
         
-        .metric-card {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        .metric-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
             padding: 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            border-left: 4px solid #1f77b4;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-radius: 10px;
+            margin: 0.5rem 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
         }
         
-        .top-candidate {
-            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-            padding: 2rem;
+        .metric-box:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        }
+        
+        .card {
+            background: white;
+            border: 1px solid #e0e0e0;
             border-radius: 8px;
-            border-left: 5px solid #28a745;
+            padding: 1.5rem;
             margin: 1rem 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         
-        .top-candidate h3 {
+        .success-box {
+            background: #d4edda;
             color: #155724;
-            margin-bottom: 1rem;
-            font-size: 1.3rem;
+            padding: 1rem;
+            border-radius: 5px;
+            border-left: 5px solid #28a745;
+            margin: 1rem 0;
+            font-weight: 500;
         }
         
-        .top-candidate p {
-            margin: 0.5rem 0;
-            color: #155724;
+        .warning-box {
+            background: #fff3cd;
+            color: #856404;
+            padding: 1rem;
+            border-radius: 5px;
+            border-left: 5px solid #ffc107;
+            margin: 1rem 0;
+            font-weight: 500;
         }
         
-        .results-container {
-            background-color: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            border: 1px solid #e0e0e0;
+        .error-box {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 5px;
+            border-left: 5px solid #dc3545;
+            margin: 1rem 0;
+            font-weight: 500;
+        }
+        
+        .stButton > button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 44px;
+            width: 100%;
+        }
+        
+        .stButton > button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .stButton > button:focus {
+            outline: 3px solid #667eea;
+            outline-offset: 2px;
+        }
+        
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 1rem;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            border-radius: 5px 5px 0 0;
+        }
+        
+        .stDataFrame {
+            font-size: 0.95rem;
+            overflow: auto;
+        }
+        
+        [data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #f8f9fa 0%, #f0f0f0 100%);
+            border-right: 1px solid #e0e0e0;
+        }
+        
+        .stTextInput input, .stTextArea textarea, .stSelectbox select {
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            padding: 0.75rem;
+            font-size: 1rem;
+        }
+        
+        .stTextInput input:focus, 
+        .stTextArea textarea:focus, 
+        .stSelectbox select:focus {
+            outline: 2px solid #667eea;
+            outline-offset: 2px;
+            border-color: #667eea;
         }
         
         .footer {
@@ -148,595 +238,429 @@ st.markdown("""
             border-top: 1px solid #e0e0e0;
         }
         
-        .success-message {
-            background-color: #d4edda;
-            color: #155724;
-            padding: 1rem;
-            border-radius: 5px;
-            margin: 1rem 0;
-            border-left: 4px solid #28a745;
-        }
-        
-        .info-message {
-            background-color: #d1ecf1;
-            color: #0c5460;
-            padding: 1rem;
-            border-radius: 5px;
-            margin: 1rem 0;
-            border-left: 4px solid #17a2b8;
-        }
-        
-        .chart-container {
-            background-color: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            border: 1px solid #e0e0e0;
-        }
-        
-        .export-button {
-            background-color: #1f77b4;
-            color: white;
-            padding: 0.75rem 1.5rem;
-            border-radius: 5px;
+        hr {
             border: none;
-            cursor: pointer;
-            font-weight: bold;
-            margin-right: 0.5rem;
-        }
-        
-        .stButton > button {
-            width: 100%;
-            padding: 0.75rem;
-            font-size: 1rem;
-            font-weight: bold;
-            border-radius: 5px;
-            border: none;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .stButton > button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #ddd, transparent);
         }
     </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-# Initialize session state
-if 'resumes_data' not in st.session_state:
-    st.session_state.resumes_data = {}
-if 'job_description' not in st.session_state:
-    st.session_state.job_description = ""
-if 'ranked_results' not in st.session_state:
-    st.session_state.ranked_results = None
-if 'job_skills' not in st.session_state:
-    st.session_state.job_skills = set()
-if 'models_initialized' not in st.session_state:
-    st.session_state.models_initialized = False
+# ============================================================================
+# CACHE & SESSION STATE
+# ============================================================================
 
+@st.cache_resource
+def load_bert_model():
+    """Load BERT model once and cache it."""
+    heavy_imports = get_heavy_imports()
+    if heavy_imports:
+        try:
+            heavy_imports['initialize_bert_model']()
+            return True
+        except Exception as e:
+            st.warning(f"BERT model loading delayed: {str(e)[:50]}")
+            return False
+    return False
 
-def initialize_models():
-    """Initialize NLP models on startup."""
+if 'df_resumes' not in st.session_state:
+    st.session_state.df_resumes = pd.DataFrame()
+if 'rankings' not in st.session_state:
+    st.session_state.rankings = {}
+if 'heavy_imports' not in st.session_state:
+    st.session_state.heavy_imports = None
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+@st.cache_data
+def load_resumes_from_directory(data_path: str) -> pd.DataFrame:
+    """Load resumes from directory structure."""
     try:
-        if not st.session_state.models_initialized:
-            with st.spinner("Loading NLP models (this may take 10-15 seconds on first run)..."):
-                initialize_bert_model()
-                st.session_state.models_initialized = True
-            st.success("Models ready! You can now analyze resumes.")
+        data = []
+        data_path = Path(data_path)
+        
+        if not data_path.exists():
+            return pd.DataFrame()
+        
+        for category_dir in data_path.iterdir():
+            if category_dir.is_dir():
+                for resume_file in category_dir.glob('*.txt'):
+                    try:
+                        with open(resume_file, 'r', encoding='utf-8') as f:
+                            text = f.read()
+                        data.append({
+                            'filename': resume_file.name,
+                            'category': category_dir.name,
+                            'resume_text': text
+                        })
+                    except Exception as e:
+                        logger.warning(f"Error reading {resume_file}: {e}")
+                        continue
+        
+        return pd.DataFrame(data) if data else pd.DataFrame()
     except Exception as e:
-        st.error(f"Error loading models: {str(e)[:100]}")
-        logger.error(f"Model initialization error: {e}")
+        logger.error(f"Error loading resumes: {e}")
+        return pd.DataFrame()
 
-
-def process_uploaded_resumes(uploaded_files):
-    """
-    Process uploaded resume files.
-    
-    Args:
-        uploaded_files: List of uploaded file objects
-        
-    Returns:
-        Dict: Dictionary with candidate data
-    """
-    try:
-        resumes_data = {}
-        progress_container = st.container()
-        
-        for idx, uploaded_file in enumerate(uploaded_files):
-            try:
-                progress_container.info(f"Processing file {idx+1}/{len(uploaded_files)}: {uploaded_file.name}")
-                
-                # Save temporary file
-                temp_path = f"temp_{uploaded_file.name}"
-                with open(temp_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
-                
-                # Parse resume
-                resume_text = parse_resume(temp_path)
-                
-                # Preprocess text
-                processed_text = preprocess_text(resume_text)
-                
-                # Extract skills
-                skills = extract_skills(resume_text)
-                
-                # Get candidate name from filename
-                candidate_name = get_resume_filename(temp_path).replace('temp_', '')
-                
-                resumes_data[candidate_name] = {
-                    'original_text': resume_text,
-                    'processed_text': processed_text,
-                    'skills': skills,
-                    'file_name': uploaded_file.name
-                }
-                
-                # Clean up temp file
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
-                
-            except Exception as e:
-                st.warning(f"Could not process {uploaded_file.name}: {str(e)[:80]}")
-                logger.error(f"Error processing file {uploaded_file.name}: {e}")
-                continue
-        
-        return resumes_data
-        
-    except Exception as e:
-        st.error(f"Resume processing error: {str(e)[:100]}")
-        logger.error(f"Resume processing error: {e}")
-        return {}
-
-
-def display_ranking_results(ranked_candidates):
-    """
-    Display comprehensive ranking results.
-    
-    Args:
-        ranked_candidates: List of ranked candidate dictionaries
-    """
-    if not ranked_candidates:
-        st.warning("No candidates to display")
-        return
-    
-    with st.container():
-        st.markdown('<div class="section-title">Candidate Rankings</div>', unsafe_allow_html=True)
-        
-        # Create results DataFrame
-        results_df = pd.DataFrame([{
-            'Rank': c['rank'],
-            'Candidate': c['candidate_name'],
-            'Final Score': f"{c['final_score']:.2f}%",
-            'Similarity': f"{c['similarity_score']:.2f}%",
-            'Skill Match': f"{c['skill_match_percentage']:.2f}%",
-            'Matched': len(c['matching_skills']),
-            'Missing': len(c['missing_skills'])
-        } for c in ranked_candidates])
-        
-        # Display table
-        st.dataframe(
-            results_df,
-            use_container_width=True,
-            hide_index=True,
-            height=min(400, 35 * len(results_df) + 50)
-        )
-    
-    # Top candidate highlight
-    if ranked_candidates:
-        top_candidate = ranked_candidates[0]
-        st.markdown(
-            f"""
-            <div class="top-candidate">
-                <h3>Top Candidate - {top_candidate['candidate_name']}</h3>
-                <p><strong>Final Score:</strong> {top_candidate['final_score']:.2f}%</p>
-                <p><strong>Similarity:</strong> {top_candidate['similarity_score']:.2f}%</p>
-                <p><strong>Skill Match:</strong> {top_candidate['skill_match_percentage']:.2f}%</p>
-                <p><strong>Matched Skills:</strong> {', '.join(sorted(top_candidate['matching_skills'])[:5]) if top_candidate['matching_skills'] else 'None'}</p>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
-
-
-def display_metrics(ranked_candidates):
-    """
-    Display summary metrics.
-    
-    Args:
-        ranked_candidates: List of ranked candidate dictionaries
-    """
-    if not ranked_candidates:
-        return
-    
-    with st.container():
-        st.markdown('<div class="section-title">Summary Metrics</div>', unsafe_allow_html=True)
-        
-        # Calculate metrics
-        scores = [c['final_score'] for c in ranked_candidates]
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric(
-                "Total Candidates",
-                len(ranked_candidates)
-            )
-        
-        with col2:
-            st.metric(
-                "Average Score",
-                f"{np.mean(scores):.2f}%"
-            )
-        
-        with col3:
-            st.metric(
-                "Highest Score",
-                f"{max(scores):.2f}%"
-            )
-        
-        with col4:
-            st.metric(
-                "Lowest Score",
-                f"{min(scores):.2f}%"
-            )
-
-
-def display_visualizations(ranked_candidates):
-    """
-    Display visualization charts.
-    
-    Args:
-        ranked_candidates: List of ranked candidate dictionaries
-    """
-    if not ranked_candidates:
-        return
-    
-    with st.container():
-        st.markdown('<div class="section-title">Visualizations</div>', unsafe_allow_html=True)
-        
-        col1, col2 = st.columns(2)
-        
-        # Final Scores Chart
-        with col1:
-            st.markdown("##### Final Scores")
-            
-            chart_data = pd.DataFrame({
-                'Candidate': [c['candidate_name'][:20] for c in ranked_candidates],
-                'Score': [c['final_score'] for c in ranked_candidates]
-            })
-            
-            fig, ax = plt.subplots(figsize=(10, 6))
-            colors = plt.cm.RdYlGn(np.linspace(0.3, 0.9, len(chart_data)))
-            ax.barh(chart_data['Candidate'], chart_data['Score'], color=colors)
-            ax.set_xlabel('Score (%)', fontsize=10)
-            ax.set_xlim(0, 100)
-            ax.grid(axis='x', alpha=0.3)
-            
-            # Add value labels
-            for i, v in enumerate(chart_data['Score']):
-                ax.text(v + 1, i, f'{v:.1f}%', va='center', fontsize=9)
-            
-            plt.tight_layout()
-            st.pyplot(fig, use_container_width=True)
-        
-        # Skill Match vs Similarity Chart
-        with col2:
-            st.markdown("##### Similarity vs Skill Match")
-            
-            chart_data = pd.DataFrame({
-                'Candidate': [c['candidate_name'][:20] for c in ranked_candidates],
-                'Similarity': [c['similarity_score'] for c in ranked_candidates],
-                'Skill Match': [c['skill_match_percentage'] for c in ranked_candidates]
-            })
-            
-            fig, ax = plt.subplots(figsize=(10, 6))
-            x = np.arange(len(chart_data))
-            width = 0.35
-            
-            ax.bar(x - width/2, chart_data['Similarity'], width, label='Similarity', color='steelblue', alpha=0.8)
-            ax.bar(x + width/2, chart_data['Skill Match'], width, label='Skill Match', color='orange', alpha=0.8)
-            
-            ax.set_ylabel('Score (%)', fontsize=10)
-            ax.set_xticks(x)
-            ax.set_xticklabels(chart_data['Candidate'], rotation=45, ha='right', fontsize=9)
-            ax.legend()
-            ax.set_ylim(0, 100)
-            ax.grid(axis='y', alpha=0.3)
-            
-            plt.tight_layout()
-            st.pyplot(fig, use_container_width=True)
-
-
-def display_skill_analysis(ranked_candidates, job_skills):
-    """
-    Display detailed skill analysis.
-    
-    Args:
-        ranked_candidates: List of ranked candidate dictionaries
-        job_skills: Set of required job skills
-    """
-    if not ranked_candidates:
-        return
-    
-    with st.container():
-        st.markdown('<div class="section-title">Skill Analysis</div>', unsafe_allow_html=True)
-        
-        # Skill summary for top candidates
-        for candidate in ranked_candidates[:3]:
-            with st.expander(f"{candidate['candidate_name']} - Skills"):
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.write("**Matching:**")
-                    if candidate['matching_skills']:
-                        for skill in sorted(candidate['matching_skills']):
-                            st.write(f"- {skill}")
-                    else:
-                        st.write("None")
-                
-                with col2:
-                    st.write("**Missing:**")
-                    if candidate['missing_skills']:
-                        for skill in sorted(list(candidate['missing_skills'])[:10]):
-                            st.write(f"- {skill}")
-                    else:
-                        st.write("All present!")
-                
-                with col3:
-                    st.write("**Summary:**")
-                    st.write(f"Matched: {len(candidate['matching_skills'])} / {len(job_skills)}")
-                    st.write(f"Rate: {candidate['skill_match_percentage']:.1f}%")
-                    st.write(f"Total: {len(candidate['extracted_skills'])}")
-
-
-def display_job_analysis(job_info):
-    """
-    Display job description analysis.
-    
-    Args:
-        job_info: Dictionary with job processing results
-    """
-    with st.container():
-        st.markdown('<div class="section-title">Job Description Analysis</div>', unsafe_allow_html=True)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.metric(
-                "Required Skills",
-                len(job_info['required_skills'])
-            )
-            
-            if job_info['required_skills']:
-                st.write("**Top 10 Skills:**")
-                for skill in list(job_info['required_skills'])[:10]:
-                    st.write(f"• {skill}")
-        
-        with col2:
-            st.write("**Job Title:**")
-            st.info(job_info['job_title'])
-            
-            st.write("**Keywords:**")
-            keywords = list(job_info['keywords'])[:10]
-            if keywords:
-                st.write(", ".join(keywords))
-            else:
-                st.write("No keywords identified")
-
-
-def export_results(ranked_candidates):
-    """
-    Export ranking results to Excel/CSV.
-    
-    Args:
-        ranked_candidates: List of ranked candidate dictionaries
-        
-    Returns:
-        BytesIO: Exportable file object
-    """
-    try:
-        # Convert to DataFrame
-        export_data = export_rankings_to_dict(ranked_candidates)
-        df = pd.DataFrame(export_data)
-        
-        # Create Excel file in memory
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='Rankings')
-        
-        output.seek(0)
-        return output
-        
-    except Exception as e:
-        logger.error(f"Error exporting results: {e}")
-        return None
-
-
-def main():
-    """Main application function."""
-    
-    # Header
-    st.markdown(
-        """
-        <div class="header-container">
-            <h1>Resume Screening System</h1>
-            <p>Automated Candidate Ranking using Advanced NLP</p>
+def create_metric_card(label: str, value: str, color: str = "#667eea"):
+    """Create a styled metric card."""
+    st.markdown(f"""
+        <div class="metric-box" style="background: linear-gradient(135deg, {color} 0%, #764ba2 100%);">
+            <h3 style="margin: 0; font-size: 0.9rem; opacity: 0.95;">{label}</h3>
+            <h2 style="margin: 0.5rem 0; color: white; font-size: 2rem;">{value}</h2>
         </div>
-        """, 
-        unsafe_allow_html=True
+    """, unsafe_allow_html=True)
+
+def export_to_csv(df: pd.DataFrame) -> bytes:
+    """Export DataFrame to CSV."""
+    return df.to_csv(index=False).encode('utf-8')
+
+def export_to_excel(df: pd.DataFrame) -> bytes:
+    """Export DataFrame to Excel."""
+    buffer = BytesIO()
+    df.to_excel(buffer, index=False, sheet_name='Rankings')
+    buffer.seek(0)
+    return buffer.getvalue()
+
+# ============================================================================
+# PAGE LAYOUT
+# ============================================================================
+
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.markdown("<h1>Resume Screening Pro</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #666;'>AI-powered resume screening with 4 ranking models</p>", unsafe_allow_html=True)
+
+st.markdown("---")
+
+#SIDEBAR
+with st.sidebar:
+    st.markdown("### Configuration")
+    
+    st.subheader("Data Source")
+    data_path = st.text_input(
+        "Resume Directory",
+        value="./data/resumes",
+        help="Path containing resume files by category"
     )
     
-    # Sidebar
-    with st.sidebar:
-        st.markdown("### Configuration")
-        
-        # Initialize models
-        if st.button("Initialize Models"):
-            initialize_models()
-        
-        st.markdown("---")
-        st.markdown("### Quick Stats")
-        if st.session_state.resumes_data:
-            st.info(f"Resumes Loaded: {len(st.session_state.resumes_data)}")
-        if st.session_state.ranked_results:
-            st.info(f"Candidates Ranked: {len(st.session_state.ranked_results)}")
+    if st.button("Load Resumes", use_container_width=True):
+        st.session_state.df_resumes = load_resumes_from_directory(data_path)
+        if not st.session_state.df_resumes.empty:
+            st.success(f"Loaded {len(st.session_state.df_resumes)} resumes")
+        else:
+            st.error("No resumes found")
     
-    # Main content
-    st.markdown('<div class="section-title">Input Data</div>', unsafe_allow_html=True)
-    
-    input_col1, input_col2 = st.columns([1, 1], gap="medium")
-    
-    # Resume upload
-    with input_col1:
-        st.markdown("**Upload Resumes**")
-        uploaded_files = st.file_uploader(
-            "Select PDF files",
-            type=["pdf"],
-            accept_multiple_files=True,
-            label_visibility="collapsed"
-        )
-        
-        if uploaded_files:
-            if st.button("Process Resumes", use_container_width=True):
-                with st.spinner("Processing resumes..."):
-                    st.session_state.resumes_data = process_uploaded_resumes(uploaded_files)
-                    if st.session_state.resumes_data:
-                        st.success(f"Processed {len(st.session_state.resumes_data)} resume(s)")
-        
-        # Display loaded resumes
-        if st.session_state.resumes_data:
-            with st.expander("View Loaded Resumes"):
-                for idx, candidate_name in enumerate(st.session_state.resumes_data.keys(), 1):
-                    st.write(f"{idx}. {candidate_name}")
-    
-    # Job description input
-    with input_col2:
-        st.markdown("**Job Description**")
-        job_text = st.text_area(
-            "Enter the job description",
-            height=250,
-            placeholder="Paste job description here...",
-            label_visibility="collapsed"
-        )
-        st.session_state.job_description = job_text
-    
-    st.markdown("---")
-    
-    # Analysis section
-    if st.session_state.resumes_data and st.session_state.job_description:
-        if st.button("Analyze Resumes", use_container_width=True, key="analyze_btn"):
-            try:
-                with st.spinner("Analyzing resumes (this may take 30-60 seconds on first run)..."):
-                    # Process job description
-                    job_info = process_job_description(st.session_state.job_description)
-                    st.session_state.job_skills = job_info['required_skills']
-                    
-                    # Prepare candidate data for ranking
-                    candidate_dict = {
-                        name: (data['original_text'], data['skills'])
-                        for name, data in st.session_state.resumes_data.items()
-                    }
-                    
-                    # Rank candidates
-                    ranked_candidates = rank_candidates(
-                        candidate_dict,
-                        st.session_state.job_description,
-                        st.session_state.job_skills,
-                        similarity_weight=0.7,
-                        skill_weight=0.3
-                    )
-                    
-                    st.session_state.ranked_results = ranked_candidates
-                
-                st.success("Analysis complete!")
-                
-                # Display results
-                st.divider()
-                
-                # Job analysis
-                display_job_analysis(job_info)
-                
-                st.divider()
-                
-                # Metrics
-                display_metrics(st.session_state.ranked_results)
-                
-                st.divider()
-                
-                # Rankings
-                display_ranking_results(st.session_state.ranked_results)
-                
-                st.divider()
-                
-                # Visualizations
-                display_visualizations(st.session_state.ranked_results)
-                
-                st.divider()
-                
-                # Skill analysis
-                display_skill_analysis(
-                    st.session_state.ranked_results,
-                    st.session_state.job_skills
-                )
-                
-                st.divider()
-                
-                # Export section
-                st.markdown('<div class="section-title">Export Results</div>', unsafe_allow_html=True)
-                
-                col1, col2 = st.columns([1, 1], gap="medium")
-                
-                with col1:
-                    export_file = export_results(st.session_state.ranked_results)
-                    if export_file:
-                        st.download_button(
-                            label="Download Results (Excel)",
-                            data=export_file,
-                            file_name=f"ranking_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True
-                        )
-                
-                with col2:
-                    csv_data = pd.DataFrame(
-                        export_rankings_to_dict(st.session_state.ranked_results)
-                    ).to_csv(index=False)
-                    
-                    st.download_button(
-                        label="Download Results (CSV)",
-                        data=csv_data,
-                        file_name=f"ranking_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv",
-                        use_container_width=True
-                    )
-                
-            except Exception as e:
-                error_msg = str(e)[:150]
-                st.error(f"Error during analysis: {error_msg}")
-                logger.error(f"Analysis error: {e}")
-    
-    else:
-        col1, col2 = st.columns([1, 1], gap="medium")
-        with col1:
-            if not st.session_state.resumes_data:
-                st.info("Please upload resume files (PDF) using the uploader above")
-        with col2:
-            if not st.session_state.job_description:
-                st.info("Please enter a job description in the text area above")
-    
-    # Footer
     st.divider()
-    st.markdown(
-        """
-        <div class="footer">
-            <p>Resume Screening System v1.0.0</p>
-            <p>Built with Streamlit, spaCy, BERT, and scikit-learn</p>
-        </div>
-        """, 
-        unsafe_allow_html=True
+    
+    st.subheader("Job Description")
+    job_description_input = st.text_area(
+        "Enter Job Requirements",
+        value="",
+        height=150,
+        placeholder="Paste job description...",
+        label_visibility="collapsed"
     )
+    
+    st.divider()
+    
+    st.subheader("Models")
+    selected_models = st.multiselect(
+        "Select Models",
+        options=["TF-IDF", "BERT", "Hybrid", "Deep Ensemble"],
+        default=["Deep Ensemble"],
+        help="Choose ranking models to use"
+    )
+    
+    st.divider()
+    
+    st.subheader("Results")
+    results_k = st.slider("Top-K", 5, 50, 10, 5)
+    
+    if not st.session_state.df_resumes.empty:
+        available_categories = st.session_state.df_resumes['category'].unique().tolist()
+        filter_categories = st.multiselect(
+            "Filter Categories",
+            options=sorted(available_categories),
+            help="Optional category filter"
+        )
+    else:
+        filter_categories = []
+    
+    st.divider()
+    with st.expander("About"):
+        st.markdown("""
+        **Resume Screening Pro v3.0**
+        
+        Features:
+        - 4 Ranking Models
+        - Skill Extraction
+        - Performance Metrics
+        - Multi-format Export
+        """)
 
+# Main CONTENT
+if st.session_state.df_resumes.empty:
+    st.info("Load resumes from the sidebar to begin")
+elif not job_description_input.strip():
+    st.info("Enter a job description in the sidebar")
+else:
+    tab1, tab2, tab3, tab4 = st.tabs(["Rankings", "Analysis", "Comparison", "Export"])
+    
+    with tab1:
+        st.markdown("## Candidate Rankings")
+        
+        try:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            df = st.session_state.df_resumes.copy()
+            df['cleaned_text'] = df['resume_text'].apply(preprocess_text)
+            progress_bar.progress(20)
+            
+            status_text.text("Extracting skills...")
+            df['skills'] = df['cleaned_text'].apply(extract_skills)
+            progress_bar.progress(40)
+            
+            status_text.text("Processing job...")
+            clean_job_desc = preprocess_text(job_description_input)
+            job_skills = extract_job_skills(job_description_input)
+            progress_bar.progress(60)
+            
+            if "BERT" in selected_models or "Deep Ensemble" in selected_models:
+                load_bert_model()
+            progress_bar.progress(80)
+            
+            # Load heavy imports when needed
+            if st.session_state.heavy_imports is None:
+                st.session_state.heavy_imports = get_heavy_imports()
+            
+            heavy_imports = st.session_state.heavy_imports
+            if not heavy_imports:
+                st.error("Required ranking models unavailable. Please refresh the page.")
+                st.stop()
+            
+            st.session_state.rankings = {}
+            
+            if "TF-IDF" in selected_models:
+                status_text.text("Running TF-IDF...")
+                try:
+                    st.session_state.rankings['TF-IDF'] = heavy_imports['rank_by_tfidf'](df, clean_job_desc)
+                except Exception as e:
+                    st.warning(f"TF-IDF failed: {str(e)[:50]}")
+            
+            if "BERT" in selected_models:
+                status_text.text("Running BERT...")
+                try:
+                    st.session_state.rankings['BERT'] = heavy_imports['rank_by_bert'](df, clean_job_desc)
+                except Exception as e:
+                    st.warning(f"BERT failed: {str(e)[:50]}")
+            
+            if "Hybrid" in selected_models:
+                status_text.text("Running Hybrid...")
+                try:
+                    st.session_state.rankings['Hybrid'] = heavy_imports['rank_by_hybrid'](df, clean_job_desc, job_skills)
+                except Exception as e:
+                    st.warning(f"Hybrid failed: {str(e)[:50]}")
+            
+            if "Deep Ensemble" in selected_models:
+                status_text.text("Running Ensemble...")
+                try:
+                    st.session_state.rankings['Deep Ensemble'] = heavy_imports['rank_by_deep_ensemble'](
+                        df, clean_job_desc, job_skills
+                    )
+                except Exception as e:
+                    st.warning(f"Deep Ensemble failed: {str(e)[:50]}")
+            
+            progress_bar.progress(100)
+            status_text.empty()
+            progress_bar.empty()
+            
+            st.success(f"Complete! Analyzed {len(df)} resumes")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                create_metric_card("Total", str(len(df)))
+            with col2:
+                create_metric_card("Categories", str(df['category'].nunique()), "#2196F3")
+            with col3:
+                create_metric_card("Avg Skills", f"{df['skills'].apply(len).mean():.1f}", "#4CAF50")
+            with col4:
+                create_metric_card("Job Skills", str(len(job_skills)), "#FF9800")
+            
+            st.divider()
+            
+            for model_name, ranked_df in st.session_state.rankings.items():
+                st.subheader(f"{model_name} Rankings")
+                
+                score_columns = [col for col in ranked_df.columns if 'score' in col.lower()]
+                if score_columns:
+                    score_col = score_columns[0]
+                    
+                    if filter_categories:
+                        ranked_df = ranked_df[ranked_df['category'].isin(filter_categories)]
+                    
+                    display_df = ranked_df.head(results_k)[['filename', 'category', score_col]].copy()
+                    display_df = display_df.reset_index(drop=True)
+                    display_df.index = display_df.index + 1
+                    display_df.columns = ['Filename', 'Category', 'Score']
+                    display_df['Score'] = display_df['Score'].apply(lambda x: f"{x:.4f}")
+                    
+                    st.dataframe(display_df, use_container_width=True)
+        
+        except Exception as e:
+            st.error(f"Error: {str(e)}")
+            logger.exception(e)
+    
+    with tab2:
+        st.markdown("## Analysis")
+        
+        if st.session_state.rankings:
+            try:
+                df = st.session_state.df_resumes.copy()
+                df['cleaned_text'] = df['resume_text'].apply(preprocess_text)
+                df['skills'] = df['cleaned_text'].apply(extract_skills)
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.subheader("Category Distribution")
+                    cat_counts = df['category'].value_counts()
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    cat_counts.plot(kind='barh', ax=ax, color='#667eea')
+                    ax.set_xlabel('Count')
+                    ax.set_title('Resumes by Category')
+                    st.pyplot(fig)
+                
+                with col2:
+                    st.subheader("Skill Distribution")
+                    all_skills = []
+                    for skills in df['skills']:
+                        all_skills.extend(skills)
+                    
+                    if all_skills:
+                        skill_counts = pd.Series(all_skills).value_counts().head(15)
+                        fig, ax = plt.subplots(figsize=(10, 6))
+                        skill_counts.plot(kind='barh', ax=ax, color='#764ba2')
+                        ax.set_xlabel('Frequency')
+                        ax.set_title('Top 15 Skills')
+                        st.pyplot(fig)
+                
+                st.divider()
+                st.subheader("Job Skills")
+                
+                clean_job_desc = preprocess_text(job_description_input)
+                job_skills = extract_job_skills(job_description_input)
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    create_metric_card("Required", str(len(job_skills)))
+                with col2:
+                    candidates_with_skills = sum([
+                        any(skill in resume_skills for skill in job_skills)
+                        for resume_skills in df['skills']
+                    ])
+                    create_metric_card("Match", str(candidates_with_skills), "#4CAF50")
+                with col3:
+                    match_percent = (candidates_with_skills / len(df) * 100) if len(df) > 0 else 0
+                    create_metric_card("Rate", f"{match_percent:.1f}%", "#FF9800")
+            
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+    
+    with tab3:
+        st.markdown("## Model Comparison")
+        
+        if len(st.session_state.rankings) > 1:
+            try:
+                comparison_data = []
+                
+                for model_name, ranked_df in st.session_state.rankings.items():
+                    score_columns = [col for col in ranked_df.columns if 'score' in col.lower()]
+                    if score_columns:
+                        score_col = score_columns[0]
+                        comparison_data.append({
+                            'Model': model_name,
+                            'Top Score': ranked_df[score_col].iloc[0] if len(ranked_df) > 0 else 0,
+                            'Avg Score': ranked_df[score_col].mean(),
+                            'Candidates': len(ranked_df)
+                        })
+                
+                if comparison_data:
+                    comp_df = pd.DataFrame(comparison_data)
+                    st.dataframe(comp_df, use_container_width=True)
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        fig, ax = plt.subplots(figsize=(8, 5))
+                        ax.bar(comp_df['Model'], comp_df['Avg Score'], color='#667eea')
+                        ax.set_ylabel('Average Score')
+                        ax.set_title('Avg Score by Model')
+                        st.pyplot(fig)
+                    
+                    with col2:
+                        fig, ax = plt.subplots(figsize=(8, 5))
+                        ax.bar(comp_df['Model'], comp_df['Top Score'], color='#764ba2')
+                        ax.set_ylabel('Top Score')
+                        ax.set_title('Best Score by Model')
+                        st.pyplot(fig)
+            
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+        else:
+            st.info("Run multiple models to compare")
+    
+    with tab4:
+        st.markdown("## Export")
+        
+        if st.session_state.rankings:
+            try:
+                all_rankings = []
+                for model_name, ranked_df in st.session_state.rankings.items():
+                    score_columns = [col for col in ranked_df.columns if 'score' in col.lower()]
+                    if score_columns:
+                        score_col = score_columns[0]
+                        export_df = ranked_df[['filename', 'category', score_col]].copy()
+                        export_df['model'] = model_name
+                        export_df.columns = ['Filename', 'Category', 'Score', 'Model']
+                        all_rankings.append(export_df)
+                
+                if all_rankings:
+                    export_data = pd.concat(all_rankings, ignore_index=True)
+                    
+                    csv_data = export_to_csv(export_data)
+                    st.download_button(
+                        label="CSV",
+                        data=csv_data,
+                        file_name=f"rankings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+                    
+                    try:
+                        excel_data = export_to_excel(export_data)
+                        st.download_button(
+                            label="Excel",
+                            data=excel_data,
+                            file_name=f"rankings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                    except Exception as e:
+                        logger.warning(f"Excel unavailable: {e}")
+                    
+                    st.divider()
+                    st.dataframe(export_data.head(20), use_container_width=True)
+            
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+        else:
+            st.info("Process candidates first")
 
-if __name__ == "__main__":
-    main()
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #666; font-size: 0.85rem; padding: 2rem 0;'>
+    <p>Resume Screening Pro v3.0 | Production Ready</p>
+</div>
+""", unsafe_allow_html=True)
